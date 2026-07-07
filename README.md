@@ -55,15 +55,16 @@
 
 ```
 scripts/
-├── dry_run_check.sh          ← 사전 검증 (양산 영향 없음)
-├── pre_snapshot.sh           ← 작업 전 스냅샷 (양산 영향 없음)
-├── stop_services.sh          ← 서비스 중지 (실제 중지 발생)
-├── start_services.sh         ← 서비스 기동 (실제 기동 발생)
-├── check_oracle.sh           ← Oracle 점검 (양산 영향 없음)
-├── check_rvd.sh              ← RVD 점검 (양산 영향 없음)
-├── post_compare.sh           ← 전후 비교 (양산 영향 없음)
-├── stop_services_example.sh  ← 중지 스크립트 한 줄씩 설명 (참고용)
-└── start_services_example.sh ← 기동 스크립트 한 줄씩 설명 (참고용)
+├── dry_run_check.sh            ← 사전 검증 (양산 영향 없음)
+├── failover_readiness_check.sh ← Failover 없이 Failover 성공 가능성 검증 (양산 영향 없음)
+├── pre_snapshot.sh             ← 작업 전 스냅샷 (양산 영향 없음)
+├── stop_services.sh            ← 서비스 중지 (실제 중지 발생)
+├── start_services.sh           ← 서비스 기동 (실제 기동 발생)
+├── check_oracle.sh             ← Oracle 점검 (양산 영향 없음)
+├── check_rvd.sh                ← RVD 점검 (양산 영향 없음)
+├── post_compare.sh             ← 전후 비교 (양산 영향 없음)
+├── stop_services_example.sh    ← 중지 스크립트 한 줄씩 설명 (참고용)
+└── start_services_example.sh   ← 기동 스크립트 한 줄씩 설명 (참고용)
 ```
 
 ---
@@ -103,7 +104,48 @@ bash dry_run_check.sh
 
 ---
 
-### 2. `pre_snapshot.sh` — 작업 전 스냅샷 수집
+### 2. `failover_readiness_check.sh` — Failover 없이 Failover 성공 가능성 검증
+
+**목적**: 실제 Failover를 실행하지 않고, "지금 Failover가 발생한다면 성공할 것인가"를 판단한다.
+이번 PM의 핵심 검증 목적으로, Failover를 트리거하지 않고도 동등한 수준의 사전 확인을 제공한다.
+
+**양산 영향**: **없음** — 모든 확인은 읽기 전용이다.
+
+**실행 방법**:
+```bash
+# 기본 실행 (이 서버만 확인)
+bash failover_readiness_check.sh
+
+# 상대 노드 IP를 지정하면 네트워크 도달성도 확인
+bash failover_readiness_check.sh --other-node 12.230.210.205
+```
+
+**검증 항목 7가지**:
+
+| # | 검증 항목 | 확인 내용 | Failover 관련성 |
+|---|-----------|-----------|-----------------|
+| 1 | HA 소프트웨어 | Pacemaker/keepalived 상태, VIP 리소스 등록, STONITH 설정 | VIP가 실제로 이동할 수 있는가 |
+| 2 | Failover 스크립트 | 파일 존재, `sh -n` 문법 검사, 실행 권한 | 스크립트가 수행 가능한가 |
+| 3 | DataGuard 동기화 | Transport/Apply lag, MRP0 프로세스 | Failover 시 데이터 손실량 |
+| 4 | 접속 문자열 | tnsnames.ora / RVD 설정에서 VIP vs Real IP | 앱이 Failover 후 자동 연결되는가 |
+| 5 | PJOSCD 자동 등록 | listener.ora 정적 등록 여부 | 재기동 후 서비스 등록 보장 여부 |
+| 6 | 자동 기동 설정 | systemctl enable, oratab :Y 설정 | 서버 재시작 후 자동 복구 여부 |
+| 7 | 상대 노드 상태 | TCP 도달성(포트 1621/22), ARP 테이블 | 인계 서버가 준비됐는가 |
+
+> **핵심 원리**: Failover가 성공하려면 이 7가지가 모두 갖춰져 있어야 한다.
+> 이 스크립트는 Failover를 실행하지 않고 이 조건들만 검증한다.
+> 7가지 전부 통과 = 실제 Failover를 실행해도 성공할 가능성이 높음.
+
+**판정 기준**:
+- 🟢 실패 0, 경고 2 이하 → Failover 진행 추천
+- 🟡 실패 0, 경고 다수 → 경고 항목 검토 후 진행 가능
+- 🔴 실패 1 이상 → 해결 후 재검증 필요
+
+**출력 파일**: `/tmp/failover_readiness_YYYYMMDD_HHmmss.txt`
+
+---
+
+### 3. `pre_snapshot.sh` — 작업 전 스냅샷 수집
 
 **목적**: 작업 전 서버 상태를 파일로 저장한다. 작업 후 `post_compare.sh`가 이 파일과 비교하여 변경 사항을 리포트한다.
 
