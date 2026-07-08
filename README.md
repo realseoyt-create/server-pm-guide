@@ -45,6 +45,7 @@
 | [05_체크리스트.md](05_체크리스트.md) | Pre/Main/Post 전체 체크리스트 | 전체 |
 | [06_이메일_템플릿.md](06_이메일_템플릿.md) | 공지/협조요청/완료 메일 | 각 시점 |
 | [07_작업후_보고서_템플릿.md](07_작업후_보고서_템플릿.md) | 결과 보고서 양식 | 완료 후 |
+| [08_개선_다이어그램.md](08_개선_다이어그램.md) | AS-IS vs TO-BE 프로세스 비교 다이어그램 | 참고 |
 | [scripts/](scripts/) | 자동화 스크립트 모음 | 작업 당일 |
 
 ---
@@ -57,6 +58,7 @@
 scripts/
 ├── dry_run_check.sh            ← 사전 검증 (양산 영향 없음)
 ├── failover_readiness_check.sh ← Failover 없이 Failover 성공 가능성 검증 (양산 영향 없음)
+├── process_cron_compare.sh     ← 고아 프로세스 탐지 — 프로세스 vs Crontab 교차 비교 (양산 영향 없음)
 ├── pre_snapshot.sh             ← 작업 전 스냅샷 (양산 영향 없음)
 ├── stop_services.sh            ← 서비스 중지 (실제 중지 발생)
 ├── start_services.sh           ← 서비스 기동 (실제 기동 발생)
@@ -367,7 +369,8 @@ bash post_compare.sh
 
 ```
 [D-1 또는 작업 며칠 전]
-  bash dry_run_check.sh      ← 양산 영향 없음. 문제 있으면 이 시점에 해결.
+  bash dry_run_check.sh             ← 양산 영향 없음. 문제 있으면 이 시점에 해결.
+  bash process_cron_compare.sh      ← 고아 프로세스 탐지. 결과 보고 후 선제 조치.
 
 [D-Day 12:30 ~ 13:00]
   bash pre_snapshot.sh       ← 양산 영향 없음. 서버 운영 중에 실행.
